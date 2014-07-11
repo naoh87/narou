@@ -33,6 +33,9 @@ module Command
       @opt.on("-a", "--convert-only-new-arrival", "新着のみ変換を実行する") {
         @options["convert-only-new-arrival"] = true
       }
+      @opt.on("-s", "--silent-no-update", "更新のない小説は画面出力しない") {
+        @options["silent-no-update"] = true
+      }
     end
 
     def execute(argv)
@@ -57,12 +60,13 @@ module Command
             next
           end
         end
-        Helper.print_horizontal_rule if i > 0
+        Helper.print_horizontal_rule if i > 0 unless @options["silent-no-update"]
         if display_message
           puts display_message
           next
         end
         result = Downloader.start(target)
+        print "\033[2K\r" if @options["silent-no-update"]
         case result.status
         when :ok
           unless @options["no-convert"] or
@@ -71,15 +75,20 @@ module Command
             convert_argv << "--no-open" if no_open
             Convert.execute!(convert_argv)
           end
+          puts ""  if @options["silent-no-update"]
         when :failed
           puts "ID:#{data["id"]}　#{data["title"]} の更新は失敗しました"
           Freeze.execute!([target])
         when :canceled
           puts "ID:#{data["id"]}　#{data["title"]} の更新はキャンセルされました"
         when :none
-          puts "#{data["title"]} に更新はありません"
+          none_msg = "#{data["title"]} に更新はありません"
+          pre_msg = " (#{"%#{update_target_list.size.to_s.size}i" % (i + 1)}/#{update_target_list.size}) "
+          puts none_msg unless @options["silent-no-update"]
+          print pre_msg+"#{data["title"]}\r" if @options["silent-no-update"]
         end
       end
+      print "\033[2K\r" if @options["silent-no-update"]
     rescue Interrupt
       puts "アップデートを中断しました"
       exit 1
